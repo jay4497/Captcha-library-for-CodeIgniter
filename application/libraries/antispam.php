@@ -53,33 +53,105 @@ class Antispam {
 		You can overrite All this variables during initialization
 	*/
 
-	var $img_url		=   '' ; 	// Image URL
-	var $img_path 		=   './captcha/'; // Image path
-	var $img_width 		= 	120;   	// CODE_WIDTH
-	var $img_height 	= 	30;		// CODE_HEIGHT	
+	protected $img_url		=   '' ; 	// Image URL
+	protected $img_path 		=   './captcha/'; // Image path
+	protected $img_width 		= 	120;   	// CODE_WIDTH
+	protected $img_height 	= 	30;		// CODE_HEIGHT
 
-	var $font_name		= 	FALSE;		// test.ttf
-	var $font_path 		= 	'./fonts';  // PATH_TTF	
-	var $fonts 			=   array();  	// Collect fonts name from fonts folder
-	var $font_size		=  	15; 	// CODE_FONT_SIZE
+	protected $font_name		= 	FALSE;		// test.ttf
+	protected $font_path 		= 	'./fonts';  // PATH_TTF	
+	protected $fonts 			=   array();  	// Collect fonts name from fonts folder
+	protected $font_size		=  	15; 	// CODE_FONT_SIZE
 	
-	var $char_set 		= "ABCDEFGHJKLMNPQRSTUVWXYZ2345689";	//CODE_ALLOWED_CHARS
-	var $char_length 	= 	5;		// CODE_CHARS_COUNT
+	protected $char_set 		= "ABCDEFGHJKLMNPQRSTUVWXYZ2345689abcdefghijklmnopqrstuvwxyz";	//CODE_ALLOWED_CHARS
+	protected $char_length 	= 	5;		// CODE_CHARS_COUNT
 	
-	var $char_color 	=   "#880000,#008800,#000088,#888800,#880088,#008888,#000000";  // CODE_CHAR_COLORS
-	var $char_colors	= 	array();  // array from $char_color
+	protected $char_color 	=   "#880000,#008800,#000088,#888800,#880088,#008888,#000000";  // CODE_CHAR_COLORS
+	protected $char_colors	= 	array();  // array from $char_color
 	
 	
-	var $line_count		=	10;		// CODE_LINES_COUNT
-	var $line_color		=  "#DD6666,#66DD66,#6666DD,#DDDD66,#DD66DD,#66DDDD,#666666"; 	// CODE_LINE_COLORS
-	var $line_colors 	= 	array();  // array from $line_color
+	protected $line_count		=	10;		// CODE_LINES_COUNT
+	protected $line_color		=  "#DD6666,#66DD66,#6666DD,#DDDD66,#DD66DD,#66DDDD,#666666"; 	// CODE_LINE_COLORS
+	protected $line_colors 	= 	array();  // array from $line_color
  
-	var $bg_color		=	'#FFFFFF';		// CODE_BG_COLOR
+	protected $bg_color		=	'#b1b1b1';		// CODE_BG_COLOR
+
+	protected $session_name = 'captcha';
 	
+	/*
+	* contruct function
+	* @param array configs
+	*/
+	public function __construct($config = array())
+	{
+		if (is_array($config)){
+			foreach($config as $k => $v){
+				if(isset($this->$k)){
+					$this->$k = $v;
+				}
+			}
+		}
+	}
+
+	/*
+	* Output captcha image
+	*/
+	public function output()
+	{
+		header('Content-Type:image/jpeg');
+		$this->line_colors = preg_split("/,\s*?/", $this->line_color );
+		$this->char_colors = preg_split("/,\s*?/", $this->char_color );
+
+		$this->fonts = $this->collect_files( $this->font_path, "ttf");
+
+
+		$img = imagecreatetruecolor( $this->img_width, $this->img_height);
+		imagefilledrectangle($img, 0, 0, $this->img_width - 1, $this->img_height - 1, $this->gd_color( $this->bg_color ));
+
+
+		// Draw lines
+		for ($i = 0; $i < $this->line_count; $i++)
+			imageline($img,
+				rand(0, $this->img_width  - 1),
+				rand(0, $this->img_height - 1),
+				rand(0, $this->img_width  - 1),
+				rand(0, $this->img_height - 1),
+				$this->gd_color($this->line_colors[rand(0, count($this->line_colors) - 1)])
+			);
+
+		// Draw code
+		$code = "";
+		$y = ($this->img_height / 2) + ( $this->font_size / 2);
+
+		for ($i = 0; $i < $this->char_length ; $i++) {
+
+			$color = $this->gd_color( $this->char_colors[rand(0, count($this->char_colors) - 1)] );
+			$angle = rand(-30, 30);
+			$char = substr( $this->char_set, rand(0, strlen($this->char_set) - 1), 1);
+
+
+			$sel_font = $this->font_name;
+			if( $this->font_name == FALSE )
+				$sel_font = $this->fonts[rand(0, count($this->fonts) - 1)];
+
+
+
+			$font = $this->font_path . "/" . $sel_font;
+
+			$x = (intval(( $this->img_width / $this->char_length) * $i) + ( $this->font_size / 2));
+			$code .= $char;
+
+			imagettftext($img, $this->font_size, $angle, $x, $y, $color, $font, $char);
+		}
+
+		get_instance()->session->set_userdata($this->session_name, $code);
+
+		// Output Image
+		ImageJPEG($img);
+	}
 
 	// Initialization for Captcha Image
-	
-	function get_antispam_image( $override = array() ) {
+	public function get_antispam_image( $override = array() ) {
 	
 		if( is_array( $override) )
 		{
@@ -134,7 +206,6 @@ class Antispam {
 			$code .= $char;
 			
 			imagettftext($img, $this->font_size, $angle, $x, $y, $color, $font, $char);
-			
 		}
 		
 		// Storing Image 
@@ -152,17 +223,16 @@ class Antispam {
 		ImageDestroy($img);
 		
 		return array('word' => $code, 'time' => $now, 'image' => $img_markup);
-	   
-	}	
+	}
 		
 		
-	function gd_color($html_color) {
+	protected function gd_color($html_color) {
 		return preg_match('/^#?([\dA-F]{6})$/i', $html_color, $rgb)
 		  ? hexdec($rgb[1]) : false;
 	}
 
 
-	function collect_files($dir, $ext) {
+	protected function collect_files($dir, $ext) {
 		if (false !== ($dir = opendir($dir))) {
 			$files = array();
 
